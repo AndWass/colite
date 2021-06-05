@@ -110,3 +110,8 @@ int main(int argc, char** argv) {
     cons.wait();
 }
 ```
+
+## Yield
+
+An awaitable that yields once to the executor. This can be used to allow
+other pending awaitable to run on that executor.
