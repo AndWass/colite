@@ -3,6 +3,7 @@
 #include <folly/executors/ManualExecutor.h>
 #include <gtest/gtest.h>
 
+#include "folly_exec.hpp"
 #include "task.hpp"
 
 TEST(channel, immediate_send) {
@@ -230,20 +231,19 @@ TEST(channel, closed_on_deleted_sender2) {
     EXPECT_TRUE(empty_received);
 }
 
-TEST(channel, closed_on_deleted_receiver)
-{
+TEST(channel, closed_on_deleted_receiver) {
     auto [sender, receiver] = colite::coroutine::channel::channel<int>();
     std::optional<colite::coroutine::channel::receiver_t<int>> wrapped_receiver(std::move(receiver));
     wrapped_receiver.reset();
 
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
-      folly_exec.add(std::move(fn));
+        folly_exec.add(std::move(fn));
     });
 
     bool send_result = true;
     auto test_task = [&]() mutable -> detail::task {
-      send_result = co_await sender.send(exec, 0);
+        send_result = co_await sender.send(exec, 0);
     }();
 
     test_task.start_on(exec);
@@ -254,4 +254,40 @@ TEST(channel, closed_on_deleted_receiver)
 
     EXPECT_TRUE(test_task.is_done());
     EXPECT_FALSE(send_result);
+}
+
+TEST(channel, destroy_task_before_receiver_wakeup) {
+    tests::manual_executor exec;
+
+    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+
+    auto receive_task = std::make_unique<detail::task>([](colite::coroutine::channel::receiver_t<int> recv, tests::manual_executor exec) mutable -> detail::task {
+        std::cout << "Awaiting receive" << std::endl;
+        co_await recv.receive(exec);
+        std::cout << "After receive" << std::endl;
+    }(std::move(receiver), exec));
+
+    receive_task->start_on(exec);
+
+    // Receive task is started, waiting for data on the channel
+    EXPECT_EQ(exec.run(), 1);
+
+    auto send_task = [](colite::coroutine::channel::sender_t<int> sender, tests::manual_executor exec) mutable -> detail::task {
+        std::cout << "Sending" << std::endl;
+        co_await sender.send(exec, 10);
+        std::cout << "After send" << std::endl;
+    }(std::move(sender), exec);
+
+    send_task.start_on(exec);
+    // Send task is started, and send data to the channel
+    // a wakeup for the receive task is pushed to the executor
+    // but not run yet.
+    EXPECT_EQ(exec.run(), 1);
+
+    // Destroy the receive task
+    receive_task.reset();
+    // The wakeup is processed, but since the task is destroyed we
+    // simply do nothing. Then send task is completed.
+    EXPECT_EQ(exec.run(), 2);
+    EXPECT_TRUE(send_task.is_done());
 }

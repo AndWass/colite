@@ -73,33 +73,41 @@ namespace colite::coroutine::channel {
         void wakeup_waiting_receivers(std::vector<std::weak_ptr<waiting_receiver_t>> waiting_receivers) {
             // We execute a function on each receivers associated executor.
             // This function, yet again, checks if data is available and if not
-            // re-queues the receiver for wakeup again.
+            // re-queues the receiver for wakeup again (unless the receiver is actually destroyed, then we do nothing).
             //
             // The alternative is to not probe all waiting receivers, but only the first
-            // that we can lock on to. I believe there might be a race where that
+            // that we can lock on to. There might be a race where that
             // coroutine could potentially be destroyed between this function being enqueued for execution
             // and the execution actually taking place. If that happens then we enter a state where we
             // might have other readers waiting for data (maybe even all of them) and data is available,
-            // but they haven't been woken up. If after that senders stay alive but send no more data
-            // we will not handle the last enqueued data.
-            for (auto r : waiting_receivers) {
-                if (auto receiver = r.lock()) {
+            // but they haven't been woken up. To fix that we could potentially wakeup the next receiver
+            // if our receiver is destroyed (and there is data available), but for now the approach to wakeup all receivers
+            // is taken.
+            for (auto weak_receiver : waiting_receivers) {
+                if (auto receiver = weak_receiver.lock()) {
                     auto exec = receiver->exec_;
 
-                    auto handler = [receiver = std::move(receiver), state = this->state_] {
-                        std::unique_lock lock{state->mutex_};
-                        auto maybe_value = state->pop_value(lock);
-                        auto sender_ticket = state->sender_ticket_.lock();
-                        if (maybe_value || !sender_ticket) {
-                            lock.unlock();
-                            receiver->value_ = std::move(maybe_value);
-                            receiver->waiting_coro_.resume();
-                        } else {
-                            // No data and senders are still alive, re-add to list of waiting receivers
-                            // to be woken up again in the future.
-                            state->waiting_receivers_.push_back(receiver);
+                    auto handler = [weak_receiver, state = this->state_] {
+                        if (auto receiver = weak_receiver.lock()) {
+                            // If the lock fails the receiver is actually destroyed.
+                            std::unique_lock lock{state->mutex_};
+                            auto maybe_value = state->pop_value(lock);
+                            auto sender_ticket = state->sender_ticket_.lock();
+                            if (maybe_value || !sender_ticket) {
+                                lock.unlock();
+                                receiver->value_ = std::move(maybe_value);
+                                receiver->waiting_coro_.resume();
+                            } else {
+                                // No data and senders are still alive, re-add to list of waiting receivers
+                                // to be woken up again in the future.
+                                state->waiting_receivers_.push_back(receiver);
+                            }
                         }
                     };
+                    // Reset the receiver before executing the handler
+                    // to ensure we don't accidentally keep it alive when
+                    // handler is running.
+                    receiver.reset();
                     colite::executor::execute(exec, std::move(handler));
                 }
             }
@@ -154,7 +162,7 @@ namespace colite::coroutine::channel {
             };
 
             auto receiver_ticket = state_->receiver_ticket_.lock();
-            if(!receiver_ticket) {
+            if (!receiver_ticket) {
                 return awaitable{std::move(exec), true};
             }
 
@@ -236,8 +244,9 @@ namespace colite::coroutine::channel {
                     return waiting_receiver_->value_;
                 }
             };
-
-            return awaitable{state_, std::make_shared<waiting_receiver_t>()};
+            auto waiting_receiver = std::make_shared<waiting_receiver_t>();
+            waiting_receiver->exec_ = std::move(exec);
+            return awaitable{state_, std::move(waiting_receiver)};
         }
     };
 
