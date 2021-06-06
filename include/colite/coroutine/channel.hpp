@@ -117,13 +117,15 @@ namespace colite::coroutine::channel {
         sender_t(const sender_t &) = default;
         sender_t(sender_t &&) noexcept = default;
         ~sender_t() {
-            if (ticket_.use_count() == 1) {
-                ticket_.reset();
-                // This class is the last holder of a ticket!
-                state_->mutex_.lock();
-                auto waiting_receivers = std::exchange(state_->waiting_receivers_, decltype(state_->waiting_receivers_){});
-                state_->mutex_.unlock();
-                wakeup_waiting_receivers(std::move(waiting_receivers));
+            if(state_) {
+                std::unique_lock lock(state_->mutex_);
+                if (ticket_.use_count() == 1) {
+                    ticket_.reset();
+                    // This class is the last holder of a ticket!
+                    auto waiting_receivers = std::exchange(state_->waiting_receivers_, decltype(state_->waiting_receivers_){});
+                    lock.unlock();
+                    wakeup_waiting_receivers(std::move(waiting_receivers));
+                }
             }
         }
 
