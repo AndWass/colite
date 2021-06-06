@@ -18,8 +18,19 @@ namespace detail
         std::shared_ptr<state> state_;
         task(std::shared_ptr<state> state_): state_(std::move(state_)) {}
     public:
-        bool is_done() const {
-            return state_->done_;
+        //task() = default;
+        task(const task&) = delete;
+        task(task&&) noexcept =  default;
+        task& operator=(const task&) = delete;
+        task& operator=(task&&) noexcept = default;
+
+        ~task() {
+            if(state_ && !is_done()) {
+                state_->my_handle_.destroy();
+            }
+        }
+        [[nodiscard]] bool is_done() const {
+            return state_ && state_->done_;
         }
 
         void start_on(colite::executor::executor auto exec) {
