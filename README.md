@@ -76,7 +76,7 @@ auto folly_exec(folly::Executor* exec) {
 }
 
 folly::coro::Task<void> producer(colite::coroutine::channel::sender_t<int> sender) {
-    auto exec = colite::executor::adapt(co_await folly::coro::co_current_executor);
+    auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for(int i=0; i<10; i++) {
         std::cout << "Sending " << i << "\n";
@@ -86,7 +86,7 @@ folly::coro::Task<void> producer(colite::coroutine::channel::sender_t<int> sende
 }
 
 folly::coro::Task<void> consumer(colite::coroutine::channel::receiver_t<int> receiver) {
-    auto exec = colite::executor::adapt(co_await folly::coro::co_current_executor);
+    auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for(;;) {
         auto value = co_await receiver.receive(exec);
