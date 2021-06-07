@@ -291,3 +291,18 @@ TEST(channel, destroy_task_before_receiver_wakeup) {
     EXPECT_EQ(exec.run(), 2);
     EXPECT_TRUE(send_task.is_done());
 }
+
+TEST(channel, destroy_task_pending_sender)
+{
+    tests::manual_executor exec;
+
+    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+    auto sender_task = std::make_unique<detail::task>([sender = std::move(sender), exec]() mutable -> detail::task {
+        co_await sender.send(exec, 1);
+    }());
+    sender_task->start_on(exec);
+
+    EXPECT_EQ(exec.run(), 1);
+    sender_task.reset();
+    EXPECT_EQ(exec.run(), 1);
+}

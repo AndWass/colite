@@ -148,13 +148,17 @@ namespace colite::coroutine::channel {
             struct awaitable {
                 exec_t exec_;
                 bool closed_ = false;
+                std::shared_ptr<void> alive_check_ = std::make_shared<char>(0);
                 static constexpr bool await_ready() noexcept {
                     return false;
                 }
 
                 void await_suspend(std::coroutine_handle<> to_suspend) noexcept {
-                    colite::executor::execute(exec_, [to_suspend] {
-                        to_suspend.resume();
+                    std::weak_ptr<void> alive_ = alive_check_;
+                    colite::executor::execute(exec_, [to_suspend, alive_] {
+                        if(auto alive = alive_.lock()) {
+                            to_suspend.resume();
+                        }
                     });
                 }
 
