@@ -23,19 +23,23 @@ namespace colite::coroutine
         struct awaitable
         {
             exec_t exec_;
+            std::shared_ptr<void> alive_check_;
             static constexpr bool await_ready() noexcept {
                 return false;
             }
 
             void await_suspend(std::coroutine_handle<> to_suspend) {
-                colite::executor::execute(exec_, [to_suspend] {
-                    to_suspend.resume();
+                std::weak_ptr<void> weak_alive_check_ = alive_check_;
+                colite::executor::execute(exec_, [to_suspend, weak_alive_check_] {
+                    if(auto alive = weak_alive_check_.lock()) {
+                        to_suspend.resume();
+                    }
                 });
             }
 
             void await_resume() {}
         };
 
-        return awaitable{std::forward<Exec>(exec)};
+        return awaitable{std::forward<Exec>(exec), std::make_shared<char>(0)};
     }
 }

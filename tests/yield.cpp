@@ -1,7 +1,9 @@
 #include <colite/coroutine/yield.hpp>
 
 #include <gtest/gtest.h>
+
 #include "task.hpp"
+#include "folly_exec.hpp"
 
 #include <folly/executors/ManualExecutor.h>
 
@@ -60,4 +62,17 @@ TEST(yield, yield_to_different_executor)
     EXPECT_TRUE(task.is_done());
     EXPECT_TRUE(before_yield);
     EXPECT_TRUE(after_yield);
+}
+
+TEST(yield, destroy_after_yield)
+{
+    auto exec = tests::manual_executor();
+    auto task = std::make_unique<detail::task>([exec]() -> detail::task {
+      co_await colite::coroutine::yield(exec);
+    }());
+
+    task->start_on(exec);
+    EXPECT_EQ(exec.run(), 1);
+    task.reset();
+    EXPECT_EQ(exec.run(), 1);
 }
