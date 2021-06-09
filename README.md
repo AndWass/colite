@@ -8,6 +8,13 @@ all awaitable-producing functions take an `executor` as an argument.
 
 **This project is a playground. Do not expect production-quality!**
 
+## Table of contents
+
+  * [Executor](#executor)
+  * [Mutex](#mutex)
+  * [Channel](#channel)
+  * [Yield](#yield)
+
 ## Executor
 
 The `executor` concept is taken from [P0443](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html)
@@ -106,9 +113,9 @@ int main(int argc, char **argv) {
 }
 ```
 
-## Channels
+## Channel
 
-Channels contains two parts: a sender and a receiver. Both are copyable, making it possible to create multiple senders (producers)
+A channel contains two parts: a sender and a receiver. Both are copyable, making it possible to create multiple senders (producers)
 and multiple receivers (consumers).
 
 A sender can only be used to send data on a channel, while a receiver can only be used to receive data on a channel.
