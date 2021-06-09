@@ -5,7 +5,7 @@
 #include <folly/init/Init.h>
 
 #include <colite/sync/mutex.hpp>
-#include <colite/coroutine/yield.hpp>
+#include <colite/task/yield.hpp>
 
 auto folly_exec(folly::Executor *exec) {
     return colite::executor::adapt([exec](auto fn) {
@@ -19,7 +19,7 @@ folly::coro::Task<void> first_task(colite::sync::mutex<int>& mutex) {
     for (int i = 0; i < 5; i++) {
         *lock += i;
         std::cout << "First task " << i << "\n";
-        co_await colite::coroutine::yield(exec);
+        co_await colite::task::yield(exec);
     }
 }
 
@@ -29,7 +29,7 @@ folly::coro::Task<void> second_task(colite::sync::mutex<int>& mutex) {
     for (int i = 0; i < 5; i++) {
         *lock += i;
         std::cout << "Second task " << i << "\n";
-        co_await colite::coroutine::yield(exec);
+        co_await colite::task::yield(exec);
     }
 }
 

@@ -4,7 +4,7 @@
 #include <folly/experimental/coro/Task.h>
 #include <folly/init/Init.h>
 
-#include <colite/coroutine/yield.hpp>
+#include <colite/task/yield.hpp>
 
 auto folly_exec(folly::Executor *exec) {
     return colite::executor::adapt([exec](auto fn) {
@@ -17,7 +17,7 @@ folly::coro::Task<void> first_task() {
 
     for (int i = 0; i < 10; i++) {
         std::cout << "First task " << i << "\n";
-        co_await colite::coroutine::yield(exec);
+        co_await colite::task::yield(exec);
     }
 }
 
@@ -26,7 +26,7 @@ folly::coro::Task<void> second_task() {
 
     for (int i = 0; i < 10; i++) {
         std::cout << "Second task " << i << "\n";
-        co_await colite::coroutine::yield(exec);
+        co_await colite::task::yield(exec);
     }
 }
 
