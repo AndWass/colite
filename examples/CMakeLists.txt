@@ -7,3 +7,6 @@ endfunction()
 add_example(channel)
 add_example(yield)
 add_example(mutex)
+
+add_custom_target(all-examples)
+add_dependencies(all-examples examples-channel examples-yield examples-mutex)

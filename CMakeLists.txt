@@ -15,4 +15,7 @@ add_library(colite::colite ALIAS colite)
 if(BUILD_TESTING)
     add_subdirectory(examples)
     add_subdirectory(tests)
+
+    add_custom_target(all-testing)
+    add_dependencies(all-testing all-examples colite-tests)
 endif()
