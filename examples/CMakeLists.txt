@@ -1,6 +1,9 @@
 
-add_executable(examples-channel channel.cpp)
-target_link_libraries(examples-channel PRIVATE colite::colite CONAN_PKG::folly)
+function(add_example NAME)
+    add_executable(examples-${NAME} ${NAME}.cpp)
+    target_link_libraries(examples-${NAME} PRIVATE colite::colite CONAN_PKG::folly)
+endfunction()
 
-add_executable(examples-yield yield.cpp)
-target_link_libraries(examples-yield PRIVATE colite::colite CONAN_PKG::folly)
+add_example(channel)
+add_example(yield)
+add_example(mutex)
