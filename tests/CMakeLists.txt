@@ -6,6 +6,7 @@ add_executable(colite-tests
         task.cpp
         yield.cpp
         channel.cpp
+        mutex.cpp
         )
 
 target_link_libraries(colite-tests PRIVATE colite::colite CONAN_PKG::gtest CONAN_PKG::folly)
