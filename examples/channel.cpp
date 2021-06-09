@@ -4,7 +4,7 @@
 #include <folly/experimental/coro/Task.h>
 #include <folly/init/Init.h>
 
-#include <colite/coroutine/channel.hpp>
+#include <colite/sync/mpmc/channel.hpp>
 
 auto folly_exec(folly::Executor *exec) {
     return colite::executor::adapt([exec](auto fn) {
@@ -12,7 +12,7 @@ auto folly_exec(folly::Executor *exec) {
     });
 }
 
-folly::coro::Task<void> producer(colite::coroutine::channel::sender_t<int> sender) {
+folly::coro::Task<void> producer(colite::sync::mpmc::sender_t<int> sender) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for (int i = 0; i < 10; i++) {
@@ -22,7 +22,7 @@ folly::coro::Task<void> producer(colite::coroutine::channel::sender_t<int> sende
     }
 }
 
-folly::coro::Task<void> consumer(colite::coroutine::channel::receiver_t<int> receiver) {
+folly::coro::Task<void> consumer(colite::sync::mpmc::receiver_t<int> receiver) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for (;;) {
@@ -39,7 +39,7 @@ folly::coro::Task<void> consumer(colite::coroutine::channel::receiver_t<int> rec
 
 int main(int argc, char **argv) {
     folly::init(&argc, &argv);
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
     auto prod = producer(std::move(sender)).scheduleOn(folly::getGlobalCPUExecutor()).start();
     auto cons = consumer(std::move(receiver)).scheduleOn(folly::getGlobalCPUExecutor()).start();
 

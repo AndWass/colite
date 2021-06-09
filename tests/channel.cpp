@@ -1,4 +1,4 @@
-#include <colite/coroutine/channel.hpp>
+#include <colite/sync/mpmc/channel.hpp>
 
 #include <folly/executors/ManualExecutor.h>
 #include <gtest/gtest.h>
@@ -7,7 +7,7 @@
 #include "task.hpp"
 
 TEST(channel, immediate_send) {
-    auto channel = colite::coroutine::channel::channel<int>();
+    auto channel = colite::sync::mpmc::channel<int>();
 
     bool before_await = false;
     bool after_await = false;
@@ -25,7 +25,7 @@ TEST(channel, immediate_send) {
 }
 
 TEST(channel, immediate_send_receive) {
-    auto channel = colite::coroutine::channel::channel<int>();
+    auto channel = colite::sync::mpmc::channel<int>();
 
     int value_received = 0;
     auto task = [&]() -> detail::task {
@@ -39,18 +39,18 @@ TEST(channel, immediate_send_receive) {
 }
 
 TEST(channel, inter_task_send_then_receive) {
-    auto channel = colite::coroutine::channel::channel<int>();
+    auto channel = colite::sync::mpmc::channel<int>();
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
         folly_exec.add(std::move(fn));
     });
 
-    auto sender = [exec](colite::coroutine::channel::sender_t<int> sender) -> detail::task {
+    auto sender = [exec](colite::sync::mpmc::sender_t<int> sender) -> detail::task {
         co_await sender.send(exec, 20);
     }(channel.sender);
 
     int value_received = 0;
-    auto receiver = [exec, &value_received](colite::coroutine::channel::receiver_t<int> receiver) -> detail::task {
+    auto receiver = [exec, &value_received](colite::sync::mpmc::receiver_t<int> receiver) -> detail::task {
         value_received = *(co_await receiver.receive(exec));
     }(channel.receiver);
 
@@ -67,18 +67,18 @@ TEST(channel, inter_task_send_then_receive) {
 }
 
 TEST(channel, inter_task_receive_then_send) {
-    auto channel = colite::coroutine::channel::channel<int>();
+    auto channel = colite::sync::mpmc::channel<int>();
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
         folly_exec.add(std::move(fn));
     });
 
-    auto sender = [exec](colite::coroutine::channel::sender_t<int> sender) -> detail::task {
+    auto sender = [exec](colite::sync::mpmc::sender_t<int> sender) -> detail::task {
         co_await sender.send(exec, 20);
     }(channel.sender);
 
     int value_received = 0;
-    auto receiver = [exec, &value_received](colite::coroutine::channel::receiver_t<int> receiver) -> detail::task {
+    auto receiver = [exec, &value_received](colite::sync::mpmc::receiver_t<int> receiver) -> detail::task {
         auto value = co_await receiver.receive(exec);
         value_received = value.value();
     }(channel.receiver);
@@ -96,7 +96,7 @@ TEST(channel, inter_task_receive_then_send) {
 }
 
 TEST(channel, multiple_send_receive) {
-    auto channel = colite::coroutine::channel::channel<int>();
+    auto channel = colite::sync::mpmc::channel<int>();
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
         folly_exec.add(std::move(fn));
@@ -131,7 +131,7 @@ TEST(channel, multiple_send_receive) {
 }
 
 TEST(channel, structured_binding) {
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
         folly_exec.add(std::move(fn));
@@ -166,8 +166,8 @@ TEST(channel, structured_binding) {
 }
 
 TEST(channel, closed_on_deleted_sender1) {
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
-    std::optional<colite::coroutine::channel::sender_t<int>> wrapped_sender(std::move(sender));
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
+    std::optional<colite::sync::mpmc::sender_t<int>> wrapped_sender(std::move(sender));
 
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
@@ -197,8 +197,8 @@ TEST(channel, closed_on_deleted_sender1) {
 }
 
 TEST(channel, closed_on_deleted_sender2) {
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
-    std::optional<colite::coroutine::channel::sender_t<int>> wrapped_sender(std::move(sender));
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
+    std::optional<colite::sync::mpmc::sender_t<int>> wrapped_sender(std::move(sender));
 
     folly::ManualExecutor folly_exec;
     auto exec = colite::executor::adapt([&folly_exec](auto fn) {
@@ -232,8 +232,8 @@ TEST(channel, closed_on_deleted_sender2) {
 }
 
 TEST(channel, closed_on_deleted_receiver) {
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
-    std::optional<colite::coroutine::channel::receiver_t<int>> wrapped_receiver(std::move(receiver));
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
+    std::optional<colite::sync::mpmc::receiver_t<int>> wrapped_receiver(std::move(receiver));
     wrapped_receiver.reset();
 
     folly::ManualExecutor folly_exec;
@@ -259,9 +259,9 @@ TEST(channel, closed_on_deleted_receiver) {
 TEST(channel, destroy_task_before_receiver_wakeup) {
     tests::manual_executor exec;
 
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
 
-    auto receive_task = std::make_unique<detail::task>([](colite::coroutine::channel::receiver_t<int> recv, tests::manual_executor exec) mutable -> detail::task {
+    auto receive_task = std::make_unique<detail::task>([](colite::sync::mpmc::receiver_t<int> recv, tests::manual_executor exec) mutable -> detail::task {
         std::cout << "Awaiting receive" << std::endl;
         co_await recv.receive(exec);
         std::cout << "After receive" << std::endl;
@@ -272,7 +272,7 @@ TEST(channel, destroy_task_before_receiver_wakeup) {
     // Receive task is started, waiting for data on the channel
     EXPECT_EQ(exec.run(), 1);
 
-    auto send_task = [](colite::coroutine::channel::sender_t<int> sender, tests::manual_executor exec) mutable -> detail::task {
+    auto send_task = [](colite::sync::mpmc::sender_t<int> sender, tests::manual_executor exec) mutable -> detail::task {
         std::cout << "Sending" << std::endl;
         co_await sender.send(exec, 10);
         std::cout << "After send" << std::endl;
@@ -296,7 +296,7 @@ TEST(channel, destroy_task_pending_sender)
 {
     tests::manual_executor exec;
 
-    auto [sender, receiver] = colite::coroutine::channel::channel<int>();
+    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
     auto sender_task = std::make_unique<detail::task>([sender = std::move(sender), exec]() mutable -> detail::task {
         co_await sender.send(exec, 1);
     }());

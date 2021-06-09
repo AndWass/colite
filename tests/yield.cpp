@@ -1,4 +1,4 @@
-#include <colite/coroutine/yield.hpp>
+#include <colite/task/yield.hpp>
 
 #include <gtest/gtest.h>
 
@@ -15,7 +15,7 @@ TEST(yield, yields_to_same_executor)
     });
 
     auto task = [exec]() -> detail::task {
-        co_await colite::coroutine::yield(exec);
+        co_await colite::task::yield(exec);
     }();
 
     task.start_on(exec);
@@ -41,7 +41,7 @@ TEST(yield, yield_to_different_executor)
     bool after_yield = false;
     auto task = [&]() -> detail::task {
         before_yield = true;
-        co_await colite::coroutine::yield(exec2);
+        co_await colite::task::yield(exec2);
         after_yield = true;
     }();
 
@@ -68,7 +68,7 @@ TEST(yield, destroy_after_yield)
 {
     auto exec = tests::manual_executor();
     auto task = std::make_unique<detail::task>([exec]() -> detail::task {
-      co_await colite::coroutine::yield(exec);
+      co_await colite::task::yield(exec);
     }());
 
     task->start_on(exec);

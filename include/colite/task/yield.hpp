@@ -9,7 +9,7 @@
 
 #include <colite/executor/executor.hpp>
 
-namespace colite::coroutine
+namespace colite::task
 {
     /**
      * @brief Provide an awaitable that yields once to the provided executor.

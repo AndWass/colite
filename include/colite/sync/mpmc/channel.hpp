@@ -23,7 +23,7 @@
 
 #include <colite/executor/executor.hpp>
 
-namespace colite::coroutine::channel {
+namespace colite::sync::mpmc {
     template<class T>
     struct channel_t;
 
@@ -282,4 +282,4 @@ namespace colite::coroutine::channel {
         receiver_t<T> receiver(std::move(state), std::move(receiver_ticket));
         return channel_t<T>{std::move(sender), std::move(receiver)};
     }
-}// namespace colite::coroutine::channel
+}// namespace colite::sync::mpmc
