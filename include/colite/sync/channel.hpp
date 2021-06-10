@@ -22,8 +22,26 @@
 #include <optional>
 
 #include <colite/executor/executor.hpp>
+#include <colite/expected.hpp>
 
 namespace colite::mpmc {
+
+    enum class TryReceiveError
+    {
+        Empty,
+        Closed,
+    };
+
+    enum class ReceiveError
+    {
+        Closed
+    };
+
+    enum class SendError
+    {
+        Closed
+    };
+
     template<class T>
     struct Channel;
 
@@ -182,6 +200,23 @@ namespace colite::mpmc {
 
             return awaitable{std::move(exec)};
         }
+
+        colite::Expected<void, SendError> try_send(T value) {
+            auto receiver_ticket = state_->receiver_ticket_.lock();
+            if (!receiver_ticket) {
+                return Unexpected(SendError::Closed);
+            }
+
+            auto push_and_steal_waiting_receivers = [&] {
+              std::scoped_lock lock{state_->mutex_};
+              state_->data_.push_back(std::move(value));
+              return std::exchange(state_->waiting_receivers_, decltype(state_->waiting_receivers_){});
+            };
+
+            wakeup_waiting_receivers(push_and_steal_waiting_receivers());
+
+            return {};
+        }
     };
 
     template<class T>
@@ -253,6 +288,29 @@ namespace colite::mpmc {
             auto waiting_receiver = std::make_shared<waiting_receiver_t>();
             waiting_receiver->exec_ = std::move(exec);
             return awaitable{state_, std::move(waiting_receiver)};
+        }
+
+        /**
+         * @brief Try to receive a value without blocking.
+         * @return The oldest value from the channel, or an error indicating if its closed or not.
+         *
+         * This method will never block the caller in order to wait for data to become available.
+         * Instead, this will always return immediately with a possible option of pending data on the channel.
+         * This is useful for a flavor of "optimistic check" before deciding to block on a receiver.
+         * Compared with receive, this function has two failure cases instead of one
+         * (one for disconnection, one for an empty buffer).
+         */
+        [[nodiscard]] colite::Expected<T, TryReceiveError> try_receive() {
+            std::unique_lock lock(state_->mutex_);
+            auto maybe_value = state_->pop_value(lock);
+            if(maybe_value.has_value()) {
+                return std::move(*maybe_value);
+            }
+            if(auto _l = state_->sender_ticket_.lock())
+            {
+                return colite::Unexpected(TryReceiveError::Empty);
+            }
+            return colite::Unexpected(TryReceiveError::Closed);
         }
     };
 
