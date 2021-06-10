@@ -3,52 +3,52 @@
 A playground coroutine-library for coroutine-to-coroutine utilities. It is
 meant to make a minimal set of assumptions as to how tasks and executors behave.
 It doesn't assume that a task is well-behaved in that it always
-ensures that the task is resumed on the correct executor. This is why
-all awaitable-producing functions take an `executor` as an argument.
+ensures that the task is resumed on the correct Executor. This is why
+all awaitable-producing functions take an `Executor` as an argument.
 
 **This project is a playground. Do not expect production-quality!**
 
 ## Table of contents
 
-  * [Executor](#executor)
-  * [Mutex](#mutex)
+  * [Executor](#Executor)
+  * [Mutex](#Mutex)
   * [Channel](#channel)
   * [Yield](#yield)
 
 ## Executor
 
-The `executor` concept is taken from [P0443](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html).
+The `Executor` concept is taken from [P0443](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html).
 This library doesn't provide any real-world
 useful executors, but must still have some knowledge of them. 
 
 ### execute(exec, fn)
 
-This function object invokes a callable on the provided executor, either via the `exec.execute` member function, or
+This function object invokes a callable on the provided Executor, either via the `exec.execute` member function, or
 via ADL.
 
-### immediate_executor
+### ImmediateExecutor
 
-A minimal executor that simply calls the provided callable immediately.
+A minimal Executor that simply calls the provided callable immediately.
 
-### any_executor
+### AnyExecutor
 
-A type-erase helper for executors. Can hold any executor that satisfies the `executor` concept.
+A type-erase helper for executors. Can hold any Executor that satisfies the `Executor` concept.
 
 ### adapt
 
-`adapt(adaptable auto)` is a helper function that takes a copyable and movable invocable which must be callable with
-`std::function<void()>` and forwards this callable to the real executor.
+`adapt(Adaptable auto)` is a helper function that takes a copyable and movable invocable which must be callable with
+`std::function<void()>` and forwards this callable to the real Executor.
 
 This allows 
 
 #### Example
 ```cpp
 folly::ManualExecutor folly_exec;
-auto exec = colite::executor::adapt([&folly_exec](auto fn) {
+auto exec = colite::Executor::adapt([&folly_exec](auto fn) {
     folly_exec.add(std::move(fn));
 });
 
-colite::executor::execute(exec, [] {
+colite::Executor::execute(exec, [] {
     std::cout << "Hello world" << std::endl;
 });
 
@@ -57,11 +57,11 @@ folly_exec.run(); // Prints "Hello world"
 
 ## Mutex
 
-A mutex provides synchronization of values between tasks. Unlike `std::mutex` this `mutex`
-holds the guarded value within the mutex. Locking the mutex returns a guard that can be used to access the value
-and unlocking the mutex again. A guard is automatically unlocked when destroyed.
+A Mutex provides synchronization of values between tasks. Unlike `std::Mutex` this `Mutex`
+holds the guarded value within the Mutex. Locking the Mutex returns a guard that can be used to access the value
+and unlocking the Mutex again. A guard is automatically unlocked when destroyed.
 
-For instance to provide mutually exclusive access to a string one would use a `colite::sync::mutex<std::string> mutex`
+For instance to provide mutually exclusive access to a string one would use a `colite::sync::Mutex<std::string> Mutex`
 
 ## Example
 
@@ -76,14 +76,14 @@ For instance to provide mutually exclusive access to a string one would use a `c
 #include <colite/task/yield.hpp>
 
 auto folly_exec(folly::Executor *exec) {
-    return colite::executor::adapt([exec](auto fn) {
+    return colite::Executor::adapt([exec](auto fn) {
       exec->add(std::move(fn));
     });
 }
 
-folly::coro::Task<void> first_task(colite::sync::mutex<int>& mutex) {
+folly::coro::Task<void> first_task(colite::sync::Mutex<int>& Mutex) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
-    auto lock = co_await mutex.lock(exec);
+    auto lock = co_await Mutex.lock(exec);
     for (int i = 0; i < 5; i++) {
         *lock += i;
         std::cout << "First task " << i << "\n";
@@ -91,9 +91,9 @@ folly::coro::Task<void> first_task(colite::sync::mutex<int>& mutex) {
     }
 }
 
-folly::coro::Task<void> second_task(colite::sync::mutex<int>& mutex) {
+folly::coro::Task<void> second_task(colite::sync::Mutex<int>& Mutex) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
-    auto lock = co_await mutex.lock(exec);
+    auto lock = co_await Mutex.lock(exec);
     for (int i = 0; i < 5; i++) {
         *lock += i;
         std::cout << "Second task " << i << "\n";
@@ -103,14 +103,14 @@ folly::coro::Task<void> second_task(colite::sync::mutex<int>& mutex) {
 
 int main(int argc, char **argv) {
     folly::init(&argc, &argv);
-    colite::sync::mutex<int> mutex(0);
-    auto first = first_task(mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
-    auto second = second_task(mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
+    colite::sync::Mutex<int> Mutex(0);
+    auto first = first_task(Mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
+    auto second = second_task(Mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
 
     first.wait();
     second.wait();
 
-    auto value = mutex.try_lock();
+    auto value = Mutex.try_lock();
     std::cout << "Value when done = " << **value << "\n";
 }
 ```
@@ -139,12 +139,12 @@ all enqueued data, but will after that be notified that the channel is closed.
 #include <colite/coroutine/channel.hpp>
 
 auto folly_exec(folly::Executor* exec) {
-    return colite::executor::adapt([exec](auto fn) {
+    return colite::Executor::adapt([exec](auto fn) {
         exec->add(std::move(fn));
     });
 }
 
-folly::coro::Task<void> producer(colite::sync::mpmc::sender_t<int> sender) {
+folly::coro::Task<void> producer(colite::mpmc::Sender<int> sender) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for(int i=0; i<10; i++) {
@@ -154,7 +154,7 @@ folly::coro::Task<void> producer(colite::sync::mpmc::sender_t<int> sender) {
     }
 }
 
-folly::coro::Task<void> consumer(colite::sync::mpmc::receiver_t<int> receiver) {
+folly::coro::Task<void> consumer(colite::mpmc::Receiver<int> receiver) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
 
     for(;;) {
@@ -171,7 +171,7 @@ folly::coro::Task<void> consumer(colite::sync::mpmc::receiver_t<int> receiver) {
 
 int main(int argc, char** argv) {
     folly::init(&argc, &argv);
-    auto [sender, receiver] = colite::sync::mpmc::channel<int>();
+    auto [sender, receiver] = colite::mpmc::channel<int>();
     auto prod = producer(std::move(sender)).scheduleOn(folly::getGlobalCPUExecutor()).start();
     auto cons = consumer(std::move(receiver)).scheduleOn(folly::getGlobalCPUExecutor()).start();
 
@@ -182,8 +182,8 @@ int main(int argc, char** argv) {
 
 ## Yield
 
-This is an awaitable that "yields" once to the executor. It causes the current
-coroutine to re-schedule itself for execution on the supplied executor.
+This is an awaitable that "yields" once to the Executor. It causes the current
+coroutine to re-schedule itself for execution on the supplied Executor.
 
 This can be useful if a coroutine needs to do time-consuming non-async processing
 to allow other coroutines to make progress once in a while.
@@ -200,7 +200,7 @@ to allow other coroutines to make progress once in a while.
 #include <colite/task/yield.hpp>
 
 auto folly_exec(folly::Executor *exec) {
-    return colite::executor::adapt([exec](auto fn) {
+    return colite::Executor::adapt([exec](auto fn) {
       exec->add(std::move(fn));
     });
 }

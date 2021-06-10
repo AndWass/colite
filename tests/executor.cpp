@@ -4,7 +4,7 @@
 
 TEST(executor, immediate_executor)
 {
-    colite::executor::immediate_executor exec;
+    colite::executor::ImmediateExecutor exec;
     bool first_run = false;
     bool second_run = false;
     colite::executor::execute(exec, [&] { first_run = true; });
@@ -16,7 +16,7 @@ TEST(executor, immediate_executor)
 
 TEST(executor, any_executor)
 {
-    colite::executor::any_executor exec(colite::executor::immediate_executor{});
+    colite::executor::AnyExecutor exec(colite::executor::ImmediateExecutor{});
     bool first_run = false;
     bool second_run = false;
     colite::executor::execute(exec, [&] { first_run = true; });
@@ -32,7 +32,7 @@ TEST(executor, adapt)
         fn();
     });
 
-    static_assert(colite::executor::executor<decltype(exec)>, "adapt");
+    static_assert(colite::executor::Executor<decltype(exec)>, "adapt");
     bool first_run = false;
     bool second_run = false;
     colite::executor::execute(exec, [&] { first_run = true; });

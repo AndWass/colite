@@ -13,7 +13,7 @@ auto folly_exec(folly::Executor *exec) {
     });
 }
 
-folly::coro::Task<void> first_task(colite::sync::mutex<int>& mutex) {
+folly::coro::Task<void> first_task(colite::sync::Mutex<int>& mutex) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
     auto lock = co_await mutex.lock(exec);
     for (int i = 0; i < 5; i++) {
@@ -23,7 +23,7 @@ folly::coro::Task<void> first_task(colite::sync::mutex<int>& mutex) {
     }
 }
 
-folly::coro::Task<void> second_task(colite::sync::mutex<int>& mutex) {
+folly::coro::Task<void> second_task(colite::sync::Mutex<int>& mutex) {
     auto exec = folly_exec(co_await folly::coro::co_current_executor);
     auto lock = co_await mutex.lock(exec);
     for (int i = 0; i < 5; i++) {
@@ -35,7 +35,7 @@ folly::coro::Task<void> second_task(colite::sync::mutex<int>& mutex) {
 
 int main(int argc, char **argv) {
     folly::init(&argc, &argv);
-    colite::sync::mutex<int> mutex(0);
+    colite::sync::Mutex<int> mutex(0);
     auto first = first_task(mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
     auto second = second_task(mutex).scheduleOn(folly::getGlobalCPUExecutor()).start();
 

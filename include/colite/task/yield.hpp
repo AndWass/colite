@@ -2,7 +2,7 @@
 
 /**
  * @file
- * @brief Yield function to yield to an executor.
+ * @brief Yield function to yield to an Executor.
  */
 
 #include <coroutine>
@@ -12,11 +12,11 @@
 namespace colite::task
 {
     /**
-     * @brief Provide an awaitable that yields once to the provided executor.
-     * @param exec The executor to resume the coroutine on again.
+     * @brief Provide an awaitable that yields once to the provided Executor.
+     * @param exec The Executor to resume the coroutine on again.
      * @return An awaitable that yields once.
      */
-    template<colite::executor::executor Exec>
+    template<colite::executor::Executor Exec>
     [[nodiscard]] auto yield(Exec&& exec) {
         using exec_t = std::remove_cvref_t<Exec>;
 
