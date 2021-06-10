@@ -33,7 +33,7 @@ namespace detail
             return state_ && state_->done_;
         }
 
-        void start_on(colite::executor::executor auto exec) {
+        void start_on(colite::executor::Executor auto exec) {
             colite::executor::execute(exec, [c = this->state_] {
                 c->my_handle_.resume();
             });

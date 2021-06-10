@@ -9,7 +9,7 @@ TEST(mutex, lock1)
 {
     tests::manual_executor exec;
 
-    colite::sync::mutex<int> mutex(5);
+    colite::sync::Mutex<int> mutex(5);
     bool locked = false;
     int value_stored = 0;
     auto task = [&]() -> detail::task {
@@ -32,7 +32,7 @@ TEST(mutex, lock2)
 {
     tests::manual_executor exec;
 
-    colite::sync::mutex<int> mutex(0);
+    colite::sync::Mutex<int> mutex(0);
 
     int value_stored = 0;
     auto task1 = [&]() -> detail::task {
@@ -64,7 +64,7 @@ TEST(mutex, mutex_guard_arrow_op)
 {
     tests::manual_executor exec;
 
-    colite::sync::mutex<std::string> mutex("");
+    colite::sync::Mutex<std::string> mutex("");
 
     int value_stored = 0;
     auto task1 = [&]() -> detail::task {
@@ -97,7 +97,7 @@ TEST(mutex, destroy_while_awaiting)
 {
     tests::manual_executor exec;
 
-    colite::sync::mutex<std::string> mutex("");
+    colite::sync::Mutex<std::string> mutex("");
     auto lock = mutex.try_lock();
 
     ASSERT_TRUE(lock.has_value());

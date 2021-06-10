@@ -2,19 +2,19 @@
 
 /**
  * @file
- * @brief Async mutex for sharing resources between tasks
+ * @brief Async Mutex for sharing resources between tasks
  *
- * A mutex provides synchronization of values between tasks. Unlike `std::mutex` this `mutex`
- * holds the guarded value within the mutex. Locking the mutex returns a guard that can be used to access the value
- * and unlocking the mutex again. A guard is automatically unlocked when destroyed.
+ * A Mutex provides synchronization of values between tasks. Unlike `std::Mutex` this `Mutex`
+ * holds the guarded value within the Mutex. Locking the Mutex returns a guard that can be used to access the value
+ * and unlocking the Mutex again. A guard is automatically unlocked when destroyed.
  *
- * For instance to provide mutually exclusive access to a string one would use a `colite::sync::mutex<std::string> mutex`
+ * For instance to provide mutually exclusive access to a string one would use a `colite::sync::Mutex<std::string> Mutex`
  *
  * ## Example
  *
  * ```cpp
- * task my_task(colite::sync::mutex<std::string>& string_value) {
- *     colite::sync::mutex_guard<std::string> value = co_await string_value.lock(my_exec);
+ * task my_task(colite::sync::Mutex<std::string>& string_value) {
+ *     colite::sync::MutexGuard<std::string> value = co_await string_value.lock(my_exec);
  *     // Once control reaches here this task has exclusive access to value
  *     *value = "Hello world"; // Update the value
  *     // value.unlock(); Not necessary, done automatically at the end of scope.
@@ -33,41 +33,40 @@
 namespace colite::sync
 {
     template<class T>
-    class mutex;
+    class Mutex;
 
     /**
-     * @brief A mutex guard that automatically unlocks the mutex on destruction
-     * @tparam T The value type held by the mutex
+     * @brief A Mutex guard that automatically unlocks the Mutex on destruction
+     * @tparam T The value type held by the Mutex
      *
      * This is the return type from `co_await some_mutex.lock(my_exec)`
      *
      * A guard is not copy constructible/assignable. It is however movable.
      */
     template<class T>
-    class mutex_guard
-    {
+    class MutexGuard {
         template<class>
-        friend class mutex;
+        friend class Mutex;
 
-        mutex<T>* mutex_ = nullptr;
+        Mutex<T>* mutex_ = nullptr;
 
-        mutex_guard(mutex<T>& mutex_): mutex_(&mutex_) {}
+        MutexGuard(Mutex<T>& mutex_): mutex_(&mutex_) {}
 
         void unlock_impl();
     public:
-        mutex_guard() = default;
-        mutex_guard(const mutex_guard&) = delete;
-        mutex_guard(mutex_guard&& rhs) noexcept: mutex_(std::exchange(rhs.mutex_, nullptr)) {}
+        MutexGuard() = default;
+        MutexGuard(const MutexGuard &) = delete;
+        MutexGuard(MutexGuard && rhs) noexcept: mutex_(std::exchange(rhs.mutex_, nullptr)) {}
 
-        mutex_guard& operator=(const mutex_guard&) = delete;
-        mutex_guard& operator=(mutex_guard&& rhs) noexcept;
+        MutexGuard & operator=(const MutexGuard &) = delete;
+        MutexGuard & operator=(MutexGuard && rhs) noexcept;
 
-        ~mutex_guard();
+        ~MutexGuard();
 
         /**
-         * @brief Unlock the mutex before destruction.
+         * @brief Unlock the Mutex before destruction.
          *
-         * It is safe to unlock and already unlocked mutex, this will simply do nothing.
+         * It is safe to unlock and already unlocked Mutex, this will simply do nothing.
          */
         void unlock() {
             unlock_impl();
@@ -81,18 +80,17 @@ namespace colite::sync
     };
 
     template<class T>
-    class mutex
-    {
+    class Mutex {
         template<class>
-        friend class mutex_guard;
+        friend class MutexGuard;
 
         struct waiter_t
         {
-            mutex* mutex_;
+            Mutex * mutex_;
             std::coroutine_handle<> coroutine_;
-            executor::any_executor exec_;
+            executor::AnyExecutor exec_;
 
-            waiter_t(mutex* m, executor::executor auto exec): mutex_(m), exec_(std::move(exec)) {}
+            waiter_t(Mutex * m, executor::Executor auto exec): mutex_(m), exec_(std::move(exec)) {}
         };
 
         std::mutex mut_;
@@ -102,7 +100,7 @@ namespace colite::sync
 
         void wakeup_waiter(std::shared_ptr<waiter_t> waiter) {
             std::weak_ptr<waiter_t> weak_waiter = waiter;
-            // Handler is posted to the waiters executor, where a life-time check of the associated awaitable is done
+            // Handler is posted to the waiters Executor, where a life-time check of the associated awaitable is done
             //
             // Then a lock attempt is made, if unsuccessful then the associated waiter is added to the list
             // of waiters.
@@ -128,7 +126,7 @@ namespace colite::sync
               std::scoped_lock lock{mut_};
               return std::exchange(waiters_, std::vector<std::weak_ptr<waiter_t>>{});
             }();
-            // Wakeup all waiters to "poll" on the mutex. Let them race to attempt to lock it again
+            // Wakeup all waiters to "poll" on the Mutex. Let them race to attempt to lock it again
             // Any unsuccessful lock-attempts will cause the waiters to be re-added to the list of
             // active waiters.
             for(auto weak_waiter: waiters) {
@@ -138,35 +136,35 @@ namespace colite::sync
             }
         }
     public:
-        explicit mutex(T value): value_(std::move(value)) {}
+        explicit Mutex(T value): value_(std::move(value)) {}
 
         /**
-         * @brief Attempt to lock the mutex.
-         * @return An optional mutex_guard.
+         * @brief Attempt to lock the Mutex.
+         * @return An optional MutexGuard.
          *
-         * This attempts to lock the mutex in a synchronous non-blocking manner.
+         * This attempts to lock the Mutex in a synchronous non-blocking manner.
          *
-         * Returns an empty optional if lock was unsuccessful, otherwise it holds a mutex_guard<T>.
+         * Returns an empty optional if lock was unsuccessful, otherwise it holds a MutexGuard<T>.
          */
-        std::optional<mutex_guard<T>> try_lock() & noexcept {
+        std::optional<MutexGuard<T>> try_lock() & noexcept {
             std::scoped_lock lock(mut_);
             if(!locked_) {
                 locked_ = true;
-                return mutex_guard<T>(*this);
+                return MutexGuard<T>(*this);
             }
             return std::nullopt;
         }
 
         /**
-         * @brief Asynchronously lock the mutex.
-         * @param exec The executor associated with the coroutine
+         * @brief Asynchronously lock the Mutex.
+         * @param exec The Executor associated with the coroutine
          * @return An awaitable object.
          *
-         * When `co_await mutex.lock(exec)` has finished, the mutex is locked.
-         * `co_await mutex.lock(exec)` will produce a `mutex_guard<T>` that can
-         * be used to read and modify the value associated with the mutex.
+         * When `co_await Mutex.lock(exec)` has finished, the Mutex is locked.
+         * `co_await Mutex.lock(exec)` will produce a `MutexGuard<T>` that can
+         * be used to read and modify the value associated with the Mutex.
          */
-        auto lock(colite::executor::executor auto exec) & {
+        auto lock(colite::executor::Executor auto exec) & {
             struct awaitable {
                 std::shared_ptr<waiter_t> waiter_;
                 static bool await_ready() noexcept {
@@ -184,7 +182,7 @@ namespace colite::sync
                     return true;
                 }
 
-                mutex_guard<T> await_resume() {
+                MutexGuard<T> await_resume() {
                     return {*waiter_->mutex_};
                 }
             };
@@ -194,27 +192,27 @@ namespace colite::sync
     };
 
     template<class T>
-    mutex_guard<T>::~mutex_guard() {
+    MutexGuard<T>::~MutexGuard() {
         unlock_impl();
     }
     template<class T>
-    T &mutex_guard<T>::operator*() noexcept {
+    T &MutexGuard<T>::operator*() noexcept {
         return mutex_->value_;
     }
     template<class T>
-    const T &mutex_guard<T>::operator*() const noexcept {
+    const T &MutexGuard<T>::operator*() const noexcept {
         return mutex_->value_;
     }
     template<class T>
-    T *mutex_guard<T>::operator->() noexcept {
+    T *MutexGuard<T>::operator->() noexcept {
         return &mutex_->value_;
     }
     template<class T>
-    const T *mutex_guard<T>::operator->() const noexcept {
+    const T *MutexGuard<T>::operator->() const noexcept {
         return &mutex_->value_;
     }
     template<class T>
-    void mutex_guard<T>::unlock_impl() {
+    void MutexGuard<T>::unlock_impl() {
         if(mutex_) {
             {
                 std::scoped_lock lock(mutex_->mut_);
@@ -225,7 +223,7 @@ namespace colite::sync
         }
     }
     template<class T>
-    mutex_guard<T> &mutex_guard<T>::operator=(mutex_guard &&rhs) noexcept {
+    MutexGuard<T> &MutexGuard<T>::operator=(MutexGuard &&rhs) noexcept {
         if(this != &rhs) {
             unlock_impl();
             mutex_ = std::exchange(rhs.mutex_, nullptr);

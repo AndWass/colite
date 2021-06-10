@@ -23,16 +23,16 @@
 
 #include <colite/executor/executor.hpp>
 
-namespace colite::sync::mpmc {
+namespace colite::mpmc {
     template<class T>
-    struct channel_t;
+    struct Channel;
 
     namespace detail {
         template<class T>
         struct waiting_receiver_t {
             std::coroutine_handle<> waiting_coro_;
             std::optional<T> value_;
-            colite::executor::any_executor exec_{colite::executor::immediate_executor{}};
+            colite::executor::AnyExecutor exec_{colite::executor::ImmediateExecutor{}};
         };
 
         template<class T>
@@ -56,22 +56,22 @@ namespace colite::sync::mpmc {
     }// namespace detail
 
     template<class T>
-    class sender_t {
+    class Sender {
         using state_t = detail::state_t<T>;
         using waiting_receiver_t = detail::waiting_receiver_t<T>;
 
         template<class U>
-        friend channel_t<U> channel();
+        friend Channel<U> channel();
 
         std::shared_ptr<state_t> state_;
         std::shared_ptr<void> ticket_;
 
-        sender_t(std::shared_ptr<detail::state_t<T>> state, std::shared_ptr<void> ticket) noexcept
+        Sender(std::shared_ptr<detail::state_t<T>> state, std::shared_ptr<void> ticket) noexcept
             : state_(std::move(state)), ticket_(std::move(ticket)) {
         }
 
         void wakeup_waiting_receivers(std::vector<std::weak_ptr<waiting_receiver_t>> waiting_receivers) {
-            // We execute a function on each receivers associated executor.
+            // We execute a function on each receivers associated Executor.
             // This function, yet again, checks if data is available and if not
             // re-queues the receiver for wakeup again (unless the receiver is actually destroyed, then we do nothing).
             //
@@ -114,9 +114,9 @@ namespace colite::sync::mpmc {
         }
 
     public:
-        sender_t(const sender_t &) = default;
-        sender_t(sender_t &&) noexcept = default;
-        ~sender_t() {
+        Sender(const Sender &) = default;
+        Sender(Sender &&) noexcept = default;
+        ~Sender() {
             if(state_) {
                 std::unique_lock lock(state_->mutex_);
                 if (ticket_.use_count() == 1) {
@@ -129,12 +129,12 @@ namespace colite::sync::mpmc {
             }
         }
 
-        sender_t &operator=(const sender_t &) = default;
-        sender_t &operator=(sender_t &&) noexcept = default;
+        Sender &operator=(const Sender &) = default;
+        Sender &operator=(Sender &&) noexcept = default;
 
         /**
          * @brief Asynchronously send data on the channel
-         * @param exec The executor to resume on once data is sent.
+         * @param exec The Executor to resume on once data is sent.
          * @param value The value to send.
          * @return An `Awaitable<bool>`, indicating if channel is data was enqueued or not.
          *
@@ -143,7 +143,7 @@ namespace colite::sync::mpmc {
          * and no data was added to the channel.
          *
          */
-        [[nodiscard]] auto send(colite::executor::executor auto exec, T value) {
+        [[nodiscard]] auto send(colite::executor::Executor auto exec, T value) {
             using exec_t = decltype(exec);
             struct awaitable {
                 exec_t exec_;
@@ -185,17 +185,17 @@ namespace colite::sync::mpmc {
     };
 
     template<class T>
-    class receiver_t {
+    class Receiver {
         using state_t = detail::state_t<T>;
         using waiting_receiver_t = detail::waiting_receiver_t<T>;
 
         template<class U>
-        friend channel_t<U> channel();
+        friend Channel<U> channel();
 
         std::shared_ptr<state_t> state_;
         std::shared_ptr<void> ticket_;
 
-        receiver_t(std::shared_ptr<state_t> state, std::shared_ptr<void> ticket) noexcept
+        Receiver(std::shared_ptr<state_t> state, std::shared_ptr<void> ticket) noexcept
             : state_(std::move(state)), ticket_(std::move(ticket)) {
         }
 
@@ -213,14 +213,14 @@ namespace colite::sync::mpmc {
 
         /**
          * @brief Asynchronously receive data from the channel.
-         * @param exec The executor to resume on
+         * @param exec The Executor to resume on
          * @return An `Awaitable<std::optional<T>>`.
          *
          * The result of `co_await receiver.receive(some_exec)` is a `std::optional<T>`. If
          * the optional has no value set then the channel is closed; all senders have been destroyed
          * and no data is queued. Otherwise the optional contains the oldest enqueued data.
          */
-        [[nodiscard]] auto receive(colite::executor::executor auto exec) {
+        [[nodiscard]] auto receive(colite::executor::Executor auto exec) {
             struct awaitable {
                 std::shared_ptr<state_t> state_;
                 std::shared_ptr<waiting_receiver_t> waiting_receiver_;
@@ -261,9 +261,9 @@ namespace colite::sync::mpmc {
      * @tparam T The type transported inside the channel.
      */
     template<class T>
-    struct channel_t {
-        sender_t<T> sender;
-        receiver_t<T> receiver;
+    struct Channel {
+        Sender<T> sender;
+        Receiver<T> receiver;
     };
 
     /**
@@ -272,14 +272,14 @@ namespace colite::sync::mpmc {
      * @return The sender and receiver of the new channel.
      */
     template<class T>
-    channel_t<T> channel() {
+    Channel<T> channel() {
         auto state = std::make_shared<detail::state_t<T>>();
         auto sender_ticket = std::make_shared<char>(0);
         auto receiver_ticket = std::make_shared<char>(0);
         state->sender_ticket_ = sender_ticket;
         state->receiver_ticket_ = receiver_ticket;
-        sender_t<T> sender(state, std::move(sender_ticket));
-        receiver_t<T> receiver(std::move(state), std::move(receiver_ticket));
-        return channel_t<T>{std::move(sender), std::move(receiver)};
+        Sender<T> sender(state, std::move(sender_ticket));
+        Receiver<T> receiver(std::move(state), std::move(receiver_ticket));
+        return Channel<T>{std::move(sender), std::move(receiver)};
     }
 }// namespace colite::sync::mpmc

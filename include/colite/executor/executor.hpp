@@ -4,34 +4,34 @@
  * @file
  * @brief Executor concepts, invocables and some helpers.
  *
- * The `executor` concept is taken from http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html
+ * The `Executor` concept is taken from http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html
  *
  * ## execute(exec, fn)
  *
- * This function object invokes a callable on the provided executor, either via the `exec.execute` member function, or
+ * This function object invokes a callable on the provided Executor, either via the `exec.execute` member function, or
  * via ADL.
  *
- * ## immediate_executor
+ * ## ImmediateExecutor
  *
- * A minimal executor that simply calls the provided callable immediately.
+ * A minimal Executor that simply calls the provided callable immediately.
  *
- * ## any_executor
+ * ## AnyExecutor
  *
- * A type-erase helper for executors. Can hold any executor that satisfies the `executor' concept.
+ * A type-erase helper for executors. Can hold any Executor that satisfies the `Executor' concept.
  *
  * ## adapt
  *
- * `adapt(adaptable auto)` is a helper function that takes a copy and movable invocable which must be callable with
- * `std::function<void()>` and forwards this callable to the real executor.
+ * `adapt(Adaptable auto)` is a helper function that takes a copy and movable invocable which must be callable with
+ * `std::function<void()>` and forwards this callable to the real Executor.
  *
  * ### Example
  * ```
  * folly::ManualExecutor folly_exec;
- * auto exec = colite::executor::adapt([&folly_exec](auto fn) {
+ * auto exec = colite::Executor::adapt([&folly_exec](auto fn) {
  *     folly_exec.add(std::move(fn));
  * });
  *
- * colite::executor::execute(exec, [] {
+ * colite::Executor::execute(exec, [] {
  *     std::cout << "Hello world" << std::endl;
  * });
  *
@@ -98,22 +98,22 @@ namespace colite::executor
      * @brief Executor concept.
      *
      * See http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html for the general gist of
-     * the executor concept.
+     * the Executor concept.
      * @tparam E
      */
     template<class E>
-    concept executor = detail::executor_of<E, detail::invocable_archetype>;
+    concept Executor = detail::executor_of<E, detail::invocable_archetype>;
 
     /**
-     * @brief Concept for a callable that can be adapted to an executor.
+     * @brief Concept for a callable that can be adapted to an Executor.
      *
      * Any callable that satisfies `std::is_invocable_v<F, std::function<void()>&>` and is both move and copy-contructibe
-     * can be adapted to become an executor.
+     * can be adapted to become an Executor.
      *
      * @tparam F The function type that the concept is checked for.
      */
     template<class F>
-    concept adaptable = std::invocable<std::remove_cvref_t<F>, std::function<void()> &> &&
+    concept Adaptable = std::invocable<std::remove_cvref_t<F>, std::function<void()> &> &&
                             std::move_constructible<std::remove_cvref_t<F>> &&
                             std::copy_constructible<std::remove_cvref_t<F>>;
 
@@ -121,7 +121,7 @@ namespace colite::executor
     {
         struct not_executor {};
 
-        static_assert(!executor<not_executor>);
+        static_assert(!Executor<not_executor>);
 
         struct adl_executor {
             friend bool operator==(const adl_executor&, const adl_executor&) noexcept {
@@ -130,7 +130,7 @@ namespace colite::executor
         };
         template<class F>
         void execute(adl_executor, F&&) {}
-        static_assert(executor<adl_executor>, "ADL executor!");
+        static_assert(Executor<adl_executor>, "ADL Executor!");
 
         struct member_executor {
             friend bool operator==(const member_executor&, const member_executor&) noexcept {
@@ -142,7 +142,7 @@ namespace colite::executor
 
             }
         };
-        static_assert(executor<member_executor>, "Member executor");
+        static_assert(Executor<member_executor>, "Member Executor");
 
         template<std::invocable<std::function<void()>> E>
         struct adapted_exec_t
@@ -161,9 +161,9 @@ namespace colite::executor
     }
 
     /**
-     * @brief A function object that is used to execute functions on a specified executor.
+     * @brief A function object that is used to execute functions on a specified Executor.
      *
-     * This is used as `colite::executor::execute(some_executor, some_function)` where `some_executor` satisfies `executor` and
+     * This is used as `colite::Executor::execute(some_executor, some_function)` where `some_executor` satisfies `Executor` and
      * `some_function` satisfies `std::invocable`.
      *
      * This function object does not participate in ADL.
@@ -171,10 +171,10 @@ namespace colite::executor
     inline constexpr detail::execute_t execute;
 
     /**
-     * @brief A simple immediate-executor that simply calls the supplied function immediately.
+     * @brief A simple immediate-Executor that simply calls the supplied function immediately.
      */
-    struct immediate_executor {
-        friend bool operator==(const immediate_executor&, const immediate_executor&) noexcept {
+    struct ImmediateExecutor {
+        friend bool operator==(const ImmediateExecutor &, const ImmediateExecutor &) noexcept {
             return true;
         }
 
@@ -184,20 +184,20 @@ namespace colite::executor
         }
     };
 
-    static_assert(executor<immediate_executor>, "immediate executor");
+    static_assert(Executor<ImmediateExecutor>, "immediate Executor");
 
     /**
      * @brief Provides a type-erased wrapper for executors.
      *
-     * `any_executor` satisfies `executor` concept and can hold any other type of executor.
+     * `AnyExecutor` satisfies `Executor` concept and can hold any other type of Executor.
      */
-    class any_executor {
+    class AnyExecutor {
         struct executor_base {
             virtual ~executor_base() = default;
             virtual void invoke(std::function<void()> func) const = 0;
             virtual std::unique_ptr<executor_base> clone() const noexcept = 0;
         };
-        template<executor Exec>
+        template<Executor Exec>
         struct type_erased_executor final: executor_base {
             Exec exec_;
 
@@ -212,7 +212,7 @@ namespace colite::executor
             }
         };
 
-        template<executor Exec>
+        template<Executor Exec>
         static std::unique_ptr<executor_base> make_impl(Exec&& exec) {
             using type_erased_t = type_erased_executor<std::remove_cvref_t<Exec>>;
             return std::make_unique<type_erased_t>(std::forward<Exec>(exec));
@@ -220,21 +220,21 @@ namespace colite::executor
 
         std::unique_ptr<executor_base> impl_;
     public:
-        template<class Exec> requires (!std::is_same_v<std::remove_cvref_t<Exec>, any_executor> && executor<Exec>)
-        any_executor(Exec&& exec): impl_(make_impl(std::forward<Exec>(exec))) {}
+        template<class Exec> requires (!std::is_same_v<std::remove_cvref_t<Exec>, AnyExecutor> && Executor<Exec>)
+            AnyExecutor(Exec&& exec): impl_(make_impl(std::forward<Exec>(exec))) {}
 
-        any_executor(const any_executor& rhs) noexcept: impl_(rhs.impl_->clone()) {}
-        any_executor(any_executor&&) noexcept = default;
+        AnyExecutor(const AnyExecutor & rhs) noexcept: impl_(rhs.impl_->clone()) {}
+        AnyExecutor(AnyExecutor &&) noexcept = default;
 
-        any_executor& operator=(const any_executor& rhs) {
+        AnyExecutor & operator=(const AnyExecutor & rhs) {
             using std::swap;
-            any_executor temp(rhs);
+            AnyExecutor temp(rhs);
             swap(impl_, temp.impl_);
             return *this;
         }
-        any_executor& operator=(any_executor&&) noexcept = default;
+        AnyExecutor & operator=(AnyExecutor &&) noexcept = default;
 
-        friend bool operator==(const any_executor& lhs, const any_executor& rhs) noexcept {
+        friend bool operator==(const AnyExecutor & lhs, const AnyExecutor & rhs) noexcept {
             return lhs.impl_.get() == rhs.impl_.get();
         }
 
@@ -244,21 +244,21 @@ namespace colite::executor
         }
     };
 
-    static_assert(executor<any_executor>, "any executor");
+    static_assert(Executor<AnyExecutor>, "any Executor");
 
     /**
-     * @brief Adapt an invocable object to be an executor. The invocable object must be invocable with `std::function<void()>` arguments
-     * @tparam Fn The object to adapt to an executor
+     * @brief Adapt an invocable object to be an Executor. The invocable object must be invocable with `std::function<void()>` arguments
+     * @tparam Fn The object to adapt to an Executor
      *
      * This allows users to create executors from lambdas for instance.
      *
      * The invocable must be copyable.
      *
      */
-    template<adaptable Fn>
+    template<Adaptable Fn>
     auto adapt(Fn&& fn) {
         using fn_t = std::remove_cvref_t<Fn>;
-        static_assert(executor<detail::adapted_exec_t<fn_t>>, "Callable cannot be adapted to an executor. Maybe it is not copyable?");
+        static_assert(Executor<detail::adapted_exec_t<fn_t>>, "Callable cannot be adapted to an Executor. Maybe it is not copyable?");
         return detail::adapted_exec_t<fn_t>{
             std::forward<Fn>(fn)
         };
@@ -276,7 +276,7 @@ namespace colite::executor
         namespace e = ::colite::executor;
         void static_test_fn(std::function<void()> fn);
         void static_test_fn_const_ref(const std::function<void()>& fn);
-        static_assert(e::executor<decltype(e::adapt(static_test_fn))>, "adapt");
-        static_assert(e::executor<decltype(e::adapt(static_test_fn_const_ref))>, "adapt");
+        static_assert(e::Executor<decltype(e::adapt(static_test_fn))>, "adapt");
+        static_assert(e::Executor<decltype(e::adapt(static_test_fn_const_ref))>, "adapt");
     }
 }
