@@ -125,7 +125,7 @@ namespace colite::sync
         }
         void wakeup_waiters() {
             std::vector<std::weak_ptr<waiter_t>> waiters = [&] {
-              std::lock_guard lock{mut_};
+              std::scoped_lock lock{mut_};
               return std::exchange(waiters_, std::vector<std::weak_ptr<waiter_t>>{});
             }();
             // Wakeup all waiters to "poll" on the mutex. Let them race to attempt to lock it again
@@ -149,7 +149,7 @@ namespace colite::sync
          * Returns an empty optional if lock was unsuccessful, otherwise it holds a mutex_guard<T>.
          */
         std::optional<mutex_guard<T>> try_lock() & noexcept {
-            std::lock_guard lock(mut_);
+            std::scoped_lock lock(mut_);
             if(!locked_) {
                 locked_ = true;
                 return mutex_guard<T>(*this);
@@ -174,7 +174,7 @@ namespace colite::sync
                 }
 
                 bool await_suspend(std::coroutine_handle<> to_suspend) {
-                    std::lock_guard lock(waiter_->mutex_->mut_);
+                    std::scoped_lock lock(waiter_->mutex_->mut_);
                     waiter_->coroutine_ = to_suspend;
                     if(!waiter_->mutex_->locked_) {
                         waiter_->mutex_->locked_ = true;
@@ -217,7 +217,7 @@ namespace colite::sync
     void mutex_guard<T>::unlock_impl() {
         if(mutex_) {
             {
-                std::lock_guard lock(mutex_->mut_);
+                std::scoped_lock lock(mutex_->mut_);
                 mutex_->locked_ = false;
             }
             mutex_->wakeup_waiters();
