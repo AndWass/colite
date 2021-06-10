@@ -6,6 +6,21 @@
 #include "folly_exec.hpp"
 #include "task.hpp"
 
+TEST(channel, try_send_receive)
+{
+    auto channel = colite::mpmc::channel<int>();
+
+    ASSERT_TRUE(channel.sender.try_send(1).has_value());
+    EXPECT_EQ(channel.receiver.try_receive().value(), 1);
+    EXPECT_EQ(channel.receiver.try_receive().error(), colite::mpmc::TryReceiveError::Empty);
+    std::optional<colite::mpmc::Sender<int>> sender = std::move(channel.sender);
+    EXPECT_EQ(channel.receiver.try_receive().error(), colite::mpmc::TryReceiveError::Empty);
+    ASSERT_TRUE(sender->try_send(2).has_value());
+    sender.reset();
+    EXPECT_EQ(channel.receiver.try_receive().value(), 2);
+    EXPECT_EQ(channel.receiver.try_receive().error(), colite::mpmc::TryReceiveError::Closed);
+}
+
 TEST(channel, immediate_send) {
     auto channel = colite::mpmc::channel<int>();
 
