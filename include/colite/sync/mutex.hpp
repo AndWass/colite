@@ -148,7 +148,7 @@ namespace colite::sync
          *
          * Returns an empty optional if lock was unsuccessful, otherwise it holds a mutex_guard<T>.
          */
-        std::optional<mutex_guard<T>> try_lock() noexcept {
+        std::optional<mutex_guard<T>> try_lock() & noexcept {
             std::lock_guard lock(mut_);
             if(!locked_) {
                 locked_ = true;
