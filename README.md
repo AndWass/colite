@@ -17,7 +17,9 @@ all awaitable-producing functions take an `executor` as an argument.
 
 ## Executor
 
-The `executor` concept is taken from [P0443](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html)
+The `executor` concept is taken from [P0443](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p0443r13.html).
+This library doesn't provide any real-world
+useful executors, but must still have some knowledge of them. 
 
 ### execute(exec, fn)
 
@@ -30,7 +32,7 @@ A minimal executor that simply calls the provided callable immediately.
 
 ### any_executor
 
-A type-erase helper for executors. Can hold any executor that satisfies the `executor' concept.
+A type-erase helper for executors. Can hold any executor that satisfies the `executor` concept.
 
 ### adapt
 
