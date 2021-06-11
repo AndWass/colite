@@ -154,11 +154,11 @@ namespace colite::mpmc {
          * @brief Asynchronously send data on the channel
          * @param exec The Executor to resume on once data is sent.
          * @param value The value to send.
-         * @return An `Awaitable<bool>`, indicating if channel is data was enqueued or not.
+         * @return An `Awaitable<Expected<void, SendError>>`.
          *
-         * If `co_await sender.send(exec, value)` returns `true` the channel is still open
-         * and the data was successfully enqueued. Otherwise the channel is closed (all receivers are destroyed)
-         * and no data was added to the channel.
+         * If `co_await sender.send(exec, value)` returns `Unexpected` the channel is closed, otherwise it is open
+         * and the data was successfully enqueued. A closed channel will never accept new data again since all
+         * readers are destroyed.
          *
          */
         [[nodiscard]] auto send(colite::executor::Executor auto exec, T value) {
@@ -180,8 +180,11 @@ namespace colite::mpmc {
                     });
                 }
 
-                [[nodiscard]] bool await_resume() const noexcept {
-                    return !closed_;
+                colite::Expected<void, SendError> await_resume() const noexcept {
+                    if(closed_) {
+                        return colite::Unexpected(SendError::Closed);
+                    }
+                    return {};
                 }
             };
 
@@ -249,11 +252,11 @@ namespace colite::mpmc {
         /**
          * @brief Asynchronously receive data from the channel.
          * @param exec The Executor to resume on
-         * @return An `Awaitable<std::optional<T>>`.
+         * @return An `AWAITABLE<Expected<T, ReceiveError>>`.
          *
-         * The result of `co_await receiver.receive(some_exec)` is a `std::optional<T>`. If
-         * the optional has no value set then the channel is closed; all senders have been destroyed
-         * and no data is queued. Otherwise the optional contains the oldest enqueued data.
+         * The result of `co_await receiver.receive(some_exec)` is an `Expected<T, ReceiveError>`. If
+         * the return-value has an unexpected value set then the channel is closed; all senders have been destroyed
+         * and no data is queued. Otherwise the expected contains the oldest enqueued data.
          */
         [[nodiscard]] auto receive(colite::executor::Executor auto exec) {
             struct awaitable {
@@ -281,8 +284,12 @@ namespace colite::mpmc {
                     return false;
                 }
 
-                std::optional<T> await_resume() {
-                    return waiting_receiver_->value_;
+                colite::Expected<T, ReceiveError> await_resume() {
+                    if(waiting_receiver_->value_.has_value())
+                    {
+                        return std::move(*waiting_receiver_->value_);
+                    }
+                    return colite::Unexpected(ReceiveError::Closed);
                 }
             };
             auto waiting_receiver = std::make_shared<waiting_receiver_t>();
