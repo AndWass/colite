@@ -256,7 +256,7 @@ TEST(channel, closed_on_deleted_receiver) {
         folly_exec.add(std::move(fn));
     });
 
-    bool send_result = true;
+    colite::Expected<void, colite::mpmc::SendError> send_result;
     auto test_task = [&]() mutable -> detail::task {
         send_result = co_await sender.send(exec, 0);
     }();

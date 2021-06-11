@@ -160,7 +160,7 @@ folly::coro::Task<void> consumer(colite::mpmc::Receiver<int> receiver) {
     for(;;) {
         auto value = co_await receiver.receive(exec);
         if(!value.has_value()) {
-            // null means channel is closed!
+            // no-value means channel is closed
             break;
         }
 
